@@ -5,7 +5,7 @@ name: Docker Build on EC2 Instance for OmniParser
 on:
   push:
     branches:
-      - feat/deploy2
+      - feat/deploy4
 
 jobs:
   build:
@@ -18,7 +18,7 @@ jobs:
         uses: appleboy/ssh-action@master
         with:
           command_timeout: "60m"
-          host: 44.198.58.162
+          host: 98.80.191.41
           username: ubuntu
           
           key: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -27,7 +27,7 @@ jobs:
             rm -rf OmniParser || true
             git clone https://github.com/OpenAdaptAI/OmniParser
             cd OmniParser
-            git checkout feat/deploy2
+            git checkout feat/deploy4
             git pull
 
             # Stop and remove any existing containers
