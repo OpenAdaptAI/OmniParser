@@ -17,26 +17,16 @@
 # sudo docker run -d -p 7861:7861 --gpus all --name omniparser-container omniparser
 # ```
 #
-# Author: Richard Abrich (@OpenAdaptAI)
+# Author: Richard Abrich (richard@openadapt.ai)
 
 FROM nvidia/cuda:12.3.1-devel-ubuntu22.04
 
 # Install system dependencies with explicit OpenGL libraries
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    #git \
     git-lfs \
     wget \
-    #libgl1 \
-    #libglib2.0-0 \
-    #libsm6 \
-    #libxext6 \
-    #libxrender1 \
-    #libglu1-mesa \
-    #libglib2.0-0 \
-    #libsm6 \
-    #libxrender1 \
-    #libxext6 \
-    #python3-opencv \
+    libgl1 \
+    libglib2.0-0 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     && git lfs install
