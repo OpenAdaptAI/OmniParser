@@ -18,7 +18,7 @@ jobs:
         uses: appleboy/ssh-action@master
         with:
           command_timeout: "60m"
-          host: 3.238.40.232
+          host: 3.209.11.44
           username: ubuntu
           
           key: ${{ secrets.SSH_PRIVATE_KEY }}
