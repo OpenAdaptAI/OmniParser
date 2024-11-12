@@ -647,7 +647,7 @@ class Deploy:
         )
 
         # Use the `ssh` method to connect and execute instance setup commands
-        Deploy.ssh()
+        Deploy.ssh(non_interactive=True)
 
         # Add, commit, and push the workflow file changes, setting the upstream branch
         try:
@@ -764,12 +764,13 @@ class Deploy:
                 logger.info(f"Instance ID: {instance.id}, State: {instance.state['Name']}, HTTP URL: Not available (no public IP)")
 
     @staticmethod
-    def ssh(project_name: str = config.PROJECT_NAME) -> None:
+    def ssh(project_name: str = config.PROJECT_NAME, non_interactive: bool = False) -> None:
         """
-        Establishes an SSH connection to the EC2 instance associated with the specified project name using subprocess.
+        Establishes an SSH connection to the EC2 instance associated with the specified project name.
 
         Args:
             project_name (str): The project name used to tag the instance. Defaults to config.PROJECT_NAME.
+            non_interactive (bool): If True, ensures a full interactive login simulation. Defaults to False.
 
         Returns:
             None
@@ -785,16 +786,29 @@ class Deploy:
         for instance in instances:
             logger.info(f"Attempting to SSH into instance: ID - {instance.id}, IP - {instance.public_ip_address}")
 
-            # Build the SSH command with StrictHostKeyChecking disabled
-            ssh_command = [
-                "ssh",
-                "-o", "StrictHostKeyChecking=no",  # Automatically accept new host keys
-                "-o", "UserKnownHostsFile=/dev/null",  # Prevent writing to known_hosts
-                "-i", config.AWS_EC2_KEY_PATH,
-                f"{config.AWS_EC2_USER}@{instance.public_ip_address}"
-            ]
+            if non_interactive:
+                # Simulate full login by forcing all initialization scripts
+                ssh_command = [
+                    "ssh",
+                    "-o", "StrictHostKeyChecking=no",  # Automatically accept new host keys
+                    "-o", "UserKnownHostsFile=/dev/null",  # Prevent writing to known_hosts
+                    "-i", config.AWS_EC2_KEY_PATH,
+                    f"{config.AWS_EC2_USER}@{instance.public_ip_address}",
+                    "-t",  # Allocate a pseudo-terminal
+                    "-tt",  # Force pseudo-terminal allocation
+                    "bash --login -c 'exit'"  # Force a full login shell and exit immediately
+                ]
+            else:
+                # Standard interactive SSH session
+                ssh_command = [
+                    "ssh",
+                    "-o", "StrictHostKeyChecking=no",
+                    "-o", "UserKnownHostsFile=/dev/null",
+                    "-i", config.AWS_EC2_KEY_PATH,
+                    f"{config.AWS_EC2_USER}@{instance.public_ip_address}"
+                ]
 
-            # Start an interactive shell session
+            # Execute the SSH command
             try:
                 subprocess.run(ssh_command, check=True)
             except subprocess.CalledProcessError as e:
