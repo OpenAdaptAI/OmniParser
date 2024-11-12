@@ -18,7 +18,7 @@ jobs:
         uses: appleboy/ssh-action@master
         with:
           command_timeout: "60m"
-          host: 100.25.44.175
+          host: 3.238.40.232
           username: ubuntu
           
           key: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -35,7 +35,7 @@ jobs:
             sudo docker rm omniparser-container || true
 
             # Build the Docker image
-            sudo nvidia-docker build -t omniparser .
+            sudo docker build -t omniparser .
 
             # Run the Docker container on the specified port
             sudo docker run -d -p 7861:7861 --gpus all --name omniparser-container omniparser
