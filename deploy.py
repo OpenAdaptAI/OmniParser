@@ -125,7 +125,7 @@ class Config(BaseSettings):
     GITHUB_TOKEN: str
     PROJECT_NAME: str
 
-    AWS_EC2_AMI: str = "ami-0f9c346cdcac09fb5"  # Deep Learning AMI GPU PyTorch 2.0.1 (Ubuntu 20.04) 20230827
+    AWS_EC2_AMI: str = ""  # fetches the latest compatible AMI dynamically if empty
     AWS_EC2_DISK_SIZE: int = 100  # GB
     #AWS_EC2_INSTANCE_TYPE: str = "p3.2xlarge"  # (V100 16GB $3.06/hr x86_64)
     AWS_EC2_INSTANCE_TYPE: str = "g4dn.xlarge"  # (T4 16GB $0.526/hr x86_64)
@@ -323,6 +323,43 @@ def get_or_create_security_group_id(ports: list[int] = [22, config.PORT]) -> str
             logger.error(f"Error describing security groups: {e}")
             return None
 
+def get_latest_ami(
+    name_filter: str = "Deep Learning AMI GPU PyTorch *",
+    owner: str = "amazon",
+    region: str = config.AWS_REGION
+) -> str:
+    """
+    Retrieves the latest AMI ID matching the specified name filter and owner.
+
+    Args:
+        name_filter (str): Filter for the AMI name. Defaults to "Deep Learning AMI GPU PyTorch *".
+        owner (str): Owner ID for the AMI. Defaults to "amazon".
+        region (str): AWS region. Defaults to config.AWS_REGION.
+
+    Returns:
+        str: The latest AMI ID matching the criteria.
+    """
+    ec2_client = boto3.client('ec2', region_name=region)
+    try:
+        response = ec2_client.describe_images(
+            Filters=[{'Name': 'name', 'Values': [name_filter]}],
+            Owners=[owner]
+        )
+        # Sort AMIs by creation date in descending order
+        images = sorted(
+            response['Images'],
+            key=lambda img: img['CreationDate'],
+            reverse=True
+        )
+        if not images:
+            raise ValueError(f"No AMIs found matching filter: {name_filter}")
+        latest_ami = images[0]['ImageId']
+        logger.info(f"Latest AMI found: {latest_ami}")
+        return latest_ami
+    except ClientError as e:
+        logger.error(f"Error fetching AMI: {e}")
+        raise
+
 def deploy_ec2_instance(
     ami: str = config.AWS_EC2_AMI,
     instance_type: str = config.AWS_EC2_INSTANCE_TYPE,
@@ -334,7 +371,7 @@ def deploy_ec2_instance(
     Deploys an EC2 instance with the specified parameters.
 
     Args:
-        ami (str): The Amazon Machine Image ID to use for the instance. Defaults to config.AWS_EC2_AMI.
+        ami (str): The Amazon Machine Image ID to use for the instance. Defaults to the latest matching AMI.
         instance_type (str): The type of instance to deploy. Defaults to config.AWS_EC2_INSTANCE_TYPE.
         project_name (str): The project name, used for tagging the instance. Defaults to config.PROJECT_NAME.
         key_name (str): The name of the key pair to use for the instance. Defaults to config.AWS_EC2_KEY_NAME.
@@ -345,6 +382,8 @@ def deploy_ec2_instance(
     """
     ec2 = boto3.resource('ec2')
     ec2_client = boto3.client('ec2')
+
+    ami = ami or get_latest_ami()
 
     # Check if key pair exists, if not create one
     try:
