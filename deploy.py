@@ -24,6 +24,15 @@ EOF
 
         python deploy.py start
 
+       You may see the following error:
+
+        botocore.exceptions.ClientError: An error occurred (OptInRequired) when
+        calling the RunInstances operation: In order to use this AWS
+        Marketplace product you need to accept terms and subscribe. To do so
+        please visit https://aws.amazon.com/marketplace/pp?sku=64g24n0wem7a8nuhfum3097vb
+
+       Open the specified URL in the browser and accept the terms, then try again.
+
     4. Wait for the build to succeed in Github actions (see console output for URL)
 
     5. Open the gradio interface (see console output for URL) and test it out.
@@ -125,8 +134,8 @@ class Config(BaseSettings):
     GITHUB_TOKEN: str
     PROJECT_NAME: str
 
-    AWS_EC2_AMI: str = ""  # fetches the latest compatible AMI dynamically if empty
-    AWS_EC2_DISK_SIZE: int = 100  # GB
+    AWS_EC2_AMI: str = "ami-06835d15c4de57810"
+    AWS_EC2_DISK_SIZE: int = 128  # GB
     #AWS_EC2_INSTANCE_TYPE: str = "p3.2xlarge"  # (V100 16GB $3.06/hr x86_64)
     AWS_EC2_INSTANCE_TYPE: str = "g4dn.xlarge"  # (T4 16GB $0.526/hr x86_64)
     AWS_EC2_USER: str = "ubuntu"
@@ -323,43 +332,6 @@ def get_or_create_security_group_id(ports: list[int] = [22, config.PORT]) -> str
             logger.error(f"Error describing security groups: {e}")
             return None
 
-def get_latest_ami(
-    name_filter: str = "Deep Learning AMI GPU PyTorch *",
-    owner: str = "amazon",
-    region: str = config.AWS_REGION
-) -> str:
-    """
-    Retrieves the latest AMI ID matching the specified name filter and owner.
-
-    Args:
-        name_filter (str): Filter for the AMI name. Defaults to "Deep Learning AMI GPU PyTorch *".
-        owner (str): Owner ID for the AMI. Defaults to "amazon".
-        region (str): AWS region. Defaults to config.AWS_REGION.
-
-    Returns:
-        str: The latest AMI ID matching the criteria.
-    """
-    ec2_client = boto3.client('ec2', region_name=region)
-    try:
-        response = ec2_client.describe_images(
-            Filters=[{'Name': 'name', 'Values': [name_filter]}],
-            Owners=[owner]
-        )
-        # Sort AMIs by creation date in descending order
-        images = sorted(
-            response['Images'],
-            key=lambda img: img['CreationDate'],
-            reverse=True
-        )
-        if not images:
-            raise ValueError(f"No AMIs found matching filter: {name_filter}")
-        latest_ami = images[0]['ImageId']
-        logger.info(f"Latest AMI found: {latest_ami}")
-        return latest_ami
-    except ClientError as e:
-        logger.error(f"Error fetching AMI: {e}")
-        raise
-
 def deploy_ec2_instance(
     ami: str = config.AWS_EC2_AMI,
     instance_type: str = config.AWS_EC2_INSTANCE_TYPE,
@@ -371,7 +343,7 @@ def deploy_ec2_instance(
     Deploys an EC2 instance with the specified parameters.
 
     Args:
-        ami (str): The Amazon Machine Image ID to use for the instance. Defaults to the latest matching AMI.
+        ami (str): The Amazon Machine Image ID to use for the instance. Defaults to config.AWS_EC2_AMI.
         instance_type (str): The type of instance to deploy. Defaults to config.AWS_EC2_INSTANCE_TYPE.
         project_name (str): The project name, used for tagging the instance. Defaults to config.PROJECT_NAME.
         key_name (str): The name of the key pair to use for the instance. Defaults to config.AWS_EC2_KEY_NAME.
@@ -382,8 +354,6 @@ def deploy_ec2_instance(
     """
     ec2 = boto3.resource('ec2')
     ec2_client = boto3.client('ec2')
-
-    ami = ami or get_latest_ami()
 
     # Check if key pair exists, if not create one
     try:
@@ -461,9 +431,9 @@ def deploy_ec2_instance(
 def configure_ec2_instance(
     instance_id: str | None = None,
     instance_ip: str | None = None,
-    max_ssh_retries: int = 10,
-    ssh_retry_delay: int = 10,
-    max_cmd_retries: int = 10,
+    max_ssh_retries: int = 20,
+    ssh_retry_delay: int = 20,
+    max_cmd_retries: int = 20,
     cmd_retry_delay: int = 30,
 ) -> tuple[str | None, str | None]:
     """
@@ -472,9 +442,9 @@ def configure_ec2_instance(
     Args:
         instance_id (str | None): The ID of the instance to configure. If None, a new instance will be deployed. Defaults to None.
         instance_ip (str | None): The IP address of the instance. Must be provided if instance_id is manually passed. Defaults to None.
-        max_ssh_retries (int): Maximum number of SSH connection retries. Defaults to 10.
-        ssh_retry_delay (int): Delay between SSH connection retries in seconds. Defaults to 10.
-        max_cmd_retries (int): Maximum number of command execution retries. Defaults to 10.
+        max_ssh_retries (int): Maximum number of SSH connection retries. Defaults to 20.
+        ssh_retry_delay (int): Delay between SSH connection retries in seconds. Defaults to 20.
+        max_cmd_retries (int): Maximum number of command execution retries. Defaults to 20.
         cmd_retry_delay (int): Delay between command execution retries in seconds. Defaults to 30.
 
     Returns:
